@@ -9,11 +9,6 @@ from ..models import LLMProvider, AIModel
 import logging
 
 try:
-    import google.genai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    # Fallback to old package name for backward compatibility
-try:
     from google import genai
     GEMINI_AVAILABLE = True
 except ImportError:
