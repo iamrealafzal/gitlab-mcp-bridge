@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+{{ block.super }}
+
+{% if oauth_start_url %}
+<div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+    <h3>GitLab OAuth Connection</h3>
+    <p>To connect this GitLab instance and sync repositories:</p>
+    <ol>
+        <li>Make sure you have saved the Client ID and Client Secret above</li>
+        <li>Click the button below to authorize access</li>
+        <li>After authorization, repositories will be automatically synced</li>
+    </ol>
+    <a href="{{ oauth_start_url }}" class="button" style="margin-right: 10px;">Connect to GitLab</a>
+    {% if sync_url %}
+    <a href="{{ sync_url }}" class="button">Sync Repositories</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
