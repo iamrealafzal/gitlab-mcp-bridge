@@ -1,0 +1,15 @@
+2025-12-25 10:35:00 - INFO - Application initialized
+2025-12-25 10:35:01 - INFO - Loading user preferences
+2025-12-25 10:35:02 - ERROR - Python error in user_service.py:45
+  File "user_service.py", line 45, in get_user
+    return users[user_id]
+KeyError: 12345
+
+2025-12-25 10:35:03 - ERROR - JavaScript error in frontend
+TypeError: Cannot read property 'name' of undefined
+    at renderUser (components/User.js:23:5)
+    at render (App.js:45:2)
+
+2025-12-25 10:35:04 - ERROR - Database connection failed
+2025-12-25 10:35:04 - CRITICAL - Unable to proceed without database
+2025-12-25 10:35:05 - INFO - Attempting to reconnect...
