@@ -422,25 +422,48 @@ class MCPServer:
                     code_context=code_context,
                     log_content=analyzer.content[:2000] if analyzer.content else None
                 )
-            except ValueError as e:
+            except (ValueError, Exception) as e:
                 # Handle provider-specific errors (like Gemini model not found)
                 error_msg = str(e)
-                if "Gemini model" in error_msg or "not found" in error_msg:
-                    # Try to fallback to Ollama if available
+                logger.warning(f"AI service error: {error_msg}")
+                
+                # Try to fallback to Ollama if available
+                if "Gemini" in error_msg or "not found" in error_msg or "404" in error_msg:
                     ollama_model = AIModel.objects.filter(
                         provider__provider_type='ollama',
                         is_active=True
                     ).first()
                     if ollama_model:
                         logger.info(f"Falling back to Ollama model: {ollama_model.display_name}")
-                        ai_service = AIService(ollama_model)
-                        fix_result = ai_service.generate_fix_suggestion(
-                            error_context=error_context,
-                            code_context=code_context,
-                            log_content=analyzer.content[:2000] if analyzer.content else None
-                        )
+                        try:
+                            ai_service = AIService(ollama_model)
+                            fix_result = ai_service.generate_fix_suggestion(
+                                error_context=error_context,
+                                code_context=code_context,
+                                log_content=analyzer.content[:2000] if analyzer.content else None
+                            )
+                        except Exception as ollama_error:
+                            logger.error(f"Ollama fallback also failed: {ollama_error}")
+                            return {'error': f"Both primary AI service and Ollama fallback failed. Original error: {error_msg}"}
                     else:
-                        return {'error': error_msg}
+                        # Try any other available model
+                        other_model = AIModel.objects.exclude(
+                            provider__provider_type='gemini'
+                        ).filter(is_active=True).first()
+                        if other_model:
+                            logger.info(f"Falling back to {other_model.provider.name} model: {other_model.display_name}")
+                            try:
+                                ai_service = AIService(other_model)
+                                fix_result = ai_service.generate_fix_suggestion(
+                                    error_context=error_context,
+                                    code_context=code_context,
+                                    log_content=analyzer.content[:2000] if analyzer.content else None
+                                )
+                            except Exception as other_error:
+                                logger.error(f"Fallback model also failed: {other_error}")
+                                return {'error': f"AI service failed: {error_msg}"}
+                        else:
+                            return {'error': f"{error_msg}. No alternative AI models available."}
                 else:
                     raise
             

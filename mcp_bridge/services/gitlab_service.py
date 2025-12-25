@@ -43,9 +43,42 @@ class GitLabService:
             logger.warning(f"No refresh token available for {self.connection.name}")
             return
         
-        # TODO: Implement OAuth token refresh logic
-        # This would typically involve calling GitLab's token endpoint
-        logger.info(f"Token refresh needed for {self.connection.name}")
+        try:
+            from django.utils import timezone
+            import requests
+            
+            token_url = f"{self.connection.instance_url}/oauth/token"
+            refresh_data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': self.connection.refresh_token,
+                'client_id': self.connection.client_id,
+                'client_secret': self.connection.client_secret,
+            }
+            
+            logger.info(f"Refreshing token for {self.connection.name}")
+            response = requests.post(token_url, data=refresh_data, timeout=10)
+            
+            if response.status_code == 200:
+                token_response = response.json()
+                self.connection.access_token = token_response.get('access_token')
+                if 'refresh_token' in token_response:
+                    self.connection.refresh_token = token_response.get('refresh_token')
+                
+                # Calculate expiration (GitLab tokens typically expire in 2 hours)
+                expires_in = token_response.get('expires_in', 7200)
+                from datetime import timedelta
+                self.connection.token_expires_at = timezone.now() + timedelta(seconds=expires_in)
+                
+                self.connection.save()
+                logger.info(f"Token refreshed successfully for {self.connection.name}")
+            else:
+                logger.error(f"Token refresh failed: {response.status_code} - {response.text}")
+                # Clear invalid tokens
+                self.connection.access_token = None
+                self.connection.refresh_token = None
+                self.connection.save()
+        except Exception as e:
+            logger.error(f"Error refreshing token for {self.connection.name}: {e}")
     
     def get_file_content(
         self,

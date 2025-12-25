@@ -225,6 +225,21 @@ class AIService:
                 }
                 model_id = model_mapping.get(model_id.lower(), f'models/{model_id}')
             
+            # Check if the requested model is available
+            # If not, and we have available models, try to use a text generation model
+            if available_models and model_id not in available_models:
+                # Look for any text generation model (not embedding)
+                text_models = [m for m in available_models if 'text' in m.lower() or 'bison' in m.lower()]
+                if text_models:
+                    logger.warning(f"Requested model {model_id} not available. Using {text_models[0]} instead.")
+                    model_id = text_models[0]
+                else:
+                    # No suitable text model available
+                    raise ValueError(
+                        f"Gemini model '{model_id}' not found. Available models: {available_models}. "
+                        f"None of them support text generation. Please use Ollama, OpenAI, or Anthropic instead."
+                    )
+            
             logger.info(f"Attempting to use Gemini model: {model_id}")
             
             response = genai.generate_text(
