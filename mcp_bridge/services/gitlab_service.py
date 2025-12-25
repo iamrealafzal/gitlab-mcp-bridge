@@ -2,6 +2,7 @@
 GitLab API Service for fetching repository contents
 """
 import gitlab
+import requests
 from typing import Optional, Dict, Any
 from django.utils import timezone
 from datetime import timedelta
@@ -44,8 +45,6 @@ class GitLabService:
             return
         
         try:
-            from django.utils import timezone
-            import requests
             
             token_url = f"{self.connection.instance_url}/oauth/token"
             refresh_data = {
