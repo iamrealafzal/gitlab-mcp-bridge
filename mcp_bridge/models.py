@@ -111,7 +111,36 @@ class EncryptedTextField(models.BinaryField):
     def get_prep_value(self, value):
         if value is None:
             return value
+        # If empty string, return None to preserve existing value
+        # This prevents overwriting encrypted values when form field is left empty
+        if value == '':
+            return None
+        # Encrypt non-empty values
         return encrypt_value(value)
+    
+    def pre_save(self, model_instance, add):
+        """Handle empty values - preserve existing encrypted value if form field was empty"""
+        value = getattr(model_instance, self.attname, None)
+        
+        # If value is None (empty form field) and object exists, preserve existing value
+        if value is None and not add and model_instance.pk:
+            try:
+                # Get existing object from database
+                existing = model_instance.__class__._default_manager.get(pk=model_instance.pk)
+                existing_value = getattr(existing, self.attname, None)
+                # Preserve the existing encrypted value
+                setattr(model_instance, self.attname, existing_value)
+                return existing_value
+            except model_instance.__class__.DoesNotExist:
+                pass
+        
+        # For new objects or when value is provided, encrypt it
+        if value and isinstance(value, str):
+            encrypted = encrypt_value(value)
+            setattr(model_instance, self.attname, encrypted)
+            return encrypted
+        
+        return value
     
     def formfield(self, **kwargs):
         # Use CharField for the form instead of BinaryField
