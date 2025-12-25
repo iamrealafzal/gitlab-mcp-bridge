@@ -264,6 +264,7 @@ class LLMProvider(models.Model):
         ('anthropic', 'Anthropic'),
         ('ollama', 'Ollama (Local)'),
         ('gemini', 'Google Gemini'),
+        ('cursor', 'Cursor'),
     ]
     
     name = models.CharField(max_length=100, unique=True, help_text="Provider name")
@@ -291,6 +292,10 @@ class LLMProvider(models.Model):
     def clean(self):
         if self.provider_type not in ['ollama'] and not self.api_key:
             raise ValidationError("API key is required for cloud providers")
+        
+        # Set default base URL for Cursor if not provided
+        if self.provider_type == 'cursor' and not self.base_url:
+            self.base_url = 'https://api.cursor.com/v1'
 
 
 class AIModel(models.Model):

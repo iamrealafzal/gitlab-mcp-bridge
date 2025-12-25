@@ -56,6 +56,8 @@ class AIService:
             return self._call_ollama(prompt)
         elif self.provider.provider_type == 'gemini':
             return self._call_gemini(prompt)
+        elif self.provider.provider_type == 'cursor':
+            return self._call_cursor(prompt)
         else:
             raise ValueError(f"Unsupported provider type: {self.provider.provider_type}")
     
