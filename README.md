@@ -175,6 +175,17 @@ graph TD
    - **Model ID**: `qwen2.5-coder:7b`
    - **Display Name**: Qwen2.5 Coder 7B
 
+#### For Cursor:
+1. Get your API key from: https://cursor.com (Settings → API Keys)
+2. Add provider:
+   - **Name**: Cursor
+   - **Provider Type**: Cursor
+   - **Base URL**: `https://api.cursor.com/v1` (default, can be left blank)
+   - **API Key**: Your Cursor API key
+3. Add model:
+   - **Model ID**: `gpt-4` or `gpt-3.5-turbo` (or any model supported by Cursor)
+   - **Display Name**: Cursor GPT-4
+
 ### 4. Configure Notifications (Optional)
 
 1. Go to **MCP Bridge > Notification Channels**
