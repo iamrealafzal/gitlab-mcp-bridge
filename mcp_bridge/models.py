@@ -109,37 +109,50 @@ class EncryptedTextField(models.BinaryField):
             return ''
     
     def get_prep_value(self, value):
+        """Prepare value for database - encrypt if provided, otherwise return as-is"""
         if value is None:
             return value
-        # If empty string, return None to preserve existing value
-        # This prevents overwriting encrypted values when form field is left empty
+        # If empty string, we need to check in pre_save if we should preserve existing
+        # For now, return None and let pre_save handle it
         if value == '':
             return None
-        # Encrypt non-empty values
-        return encrypt_value(value)
+        # Encrypt non-empty string values
+        if isinstance(value, str) and value:
+            return encrypt_value(value)
+        return value
     
     def pre_save(self, model_instance, add):
         """Handle empty values - preserve existing encrypted value if form field was empty"""
         value = getattr(model_instance, self.attname, None)
         
-        # If value is None (empty form field) and object exists, preserve existing value
-        if value is None and not add and model_instance.pk:
+        # If value is None (empty form field) and object already exists, preserve existing value
+        if value is None and not add and hasattr(model_instance, 'pk') and model_instance.pk:
             try:
-                # Get existing object from database
-                existing = model_instance.__class__._default_manager.get(pk=model_instance.pk)
-                existing_value = getattr(existing, self.attname, None)
-                # Preserve the existing encrypted value
-                setattr(model_instance, self.attname, existing_value)
-                return existing_value
-            except model_instance.__class__.DoesNotExist:
-                pass
+                # Get existing object from database (bypassing decryption)
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    table_name = model_instance._meta.db_table
+                    cursor.execute(
+                        f"SELECT {self.attname} FROM {table_name} WHERE id = %s",
+                        [model_instance.pk]
+                    )
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        # Preserve the existing encrypted value (bytes)
+                        setattr(model_instance, self.attname, row[0])
+                        return row[0]
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not preserve existing value for {self.attname}: {e}")
         
-        # For new objects or when value is provided, encrypt it
-        if value and isinstance(value, str):
+        # If value is a string (from form), encrypt it
+        if isinstance(value, str) and value:
             encrypted = encrypt_value(value)
             setattr(model_instance, self.attname, encrypted)
             return encrypted
         
+        # Return value as-is (already encrypted bytes or None)
         return value
     
     def formfield(self, **kwargs):
