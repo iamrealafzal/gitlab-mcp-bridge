@@ -16,14 +16,26 @@ def get_encryption_key():
     1. ENCRYPTION_KEY environment variable (for production/Railway)
     2. .encryption_key file (for local development)
     3. Generate new key and save to file (first run)
+    
+    Note: Fernet keys are base64-encoded bytes. If provided as environment variable,
+    it should be a base64-encoded string that we decode to bytes.
     """
     # First, check environment variable (for Railway/production)
     env_key = os.environ.get('ENCRYPTION_KEY')
     if env_key:
-        # If it's a string, encode it; if bytes, use as-is
-        if isinstance(env_key, str):
-            return env_key.encode()
-        return env_key
+        try:
+            # Fernet keys are base64-encoded. If provided as string, encode to bytes
+            # The key format is already correct (base64), we just need bytes
+            if isinstance(env_key, str):
+                # Fernet keys are base64 strings, just encode to bytes
+                return env_key.encode()
+            # If already bytes, use as-is
+            return env_key
+        except Exception as e:
+            # If encoding fails, log and fall through to file-based key
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to process ENCRYPTION_KEY from environment: {e}. Falling back to file-based key.")
     
     # Fallback to file-based key (for local development)
     key_file = os.path.join(settings.BASE_DIR, '.encryption_key')
