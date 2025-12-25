@@ -173,15 +173,16 @@ class AIService:
         """
         try:
             # Cursor API is OpenAI-compatible
-            # Try different possible base URLs
-            base_url = self.provider.base_url or 'https://api.cursor.sh/v1'
+            # Cursor keys typically work with OpenAI API directly
+            base_url = self.provider.base_url or 'https://api.openai.com/v1'
             
-            # If base_url doesn't work, try alternative endpoints
+            # Try different possible base URLs
+            # Cursor keys usually work with OpenAI API, but try Cursor-specific endpoints too
             endpoints_to_try = [
                 base_url,
+                'https://api.openai.com/v1',  # Most common - Cursor keys work here
                 'https://api.cursor.sh/v1',
                 'https://api.cursor.com/v1',
-                'https://api.openai.com/v1',  # Cursor keys might work with OpenAI directly
             ]
             
             last_error = None
