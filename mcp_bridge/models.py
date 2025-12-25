@@ -10,12 +10,28 @@ import os
 
 
 def get_encryption_key():
-    """Get or generate encryption key for sensitive data"""
+    """Get or generate encryption key for sensitive data
+    
+    Priority:
+    1. ENCRYPTION_KEY environment variable (for production/Railway)
+    2. .encryption_key file (for local development)
+    3. Generate new key and save to file (first run)
+    """
+    # First, check environment variable (for Railway/production)
+    env_key = os.environ.get('ENCRYPTION_KEY')
+    if env_key:
+        # If it's a string, encode it; if bytes, use as-is
+        if isinstance(env_key, str):
+            return env_key.encode()
+        return env_key
+    
+    # Fallback to file-based key (for local development)
     key_file = os.path.join(settings.BASE_DIR, '.encryption_key')
     if os.path.exists(key_file):
         with open(key_file, 'rb') as f:
             return f.read()
     else:
+        # Generate new key and save to file
         key = Fernet.generate_key()
         with open(key_file, 'wb') as f:
             f.write(key)
