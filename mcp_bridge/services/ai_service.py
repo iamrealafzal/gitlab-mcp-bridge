@@ -9,10 +9,20 @@ from ..models import LLMProvider, AIModel
 import logging
 
 try:
-    import google.generativeai as genai
+    import google.genai as genai
     GEMINI_AVAILABLE = True
 except ImportError:
-    GEMINI_AVAILABLE = False
+    # Fallback to old package name for backward compatibility
+try:
+    from google import genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    # Fallback to old package name for backward compatibility
+    try:
+        import google.generativeai as genai
+        GEMINI_AVAILABLE = True
+    except ImportError:
+        GEMINI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -189,8 +199,8 @@ class AIService:
         """Call Google Gemini API"""
         if not GEMINI_AVAILABLE:
             raise ImportError(
-                "google-generativeai package is not installed. "
-                "Install it with: pip install google-generativeai"
+                "google-genai package is not installed. "
+                "Install it with: pip install google-genai"
             )
         
         try:
@@ -288,8 +298,8 @@ class AIService:
                     content = str(response)
             else:
                 raise AttributeError(
-                    "google-generativeai package doesn't have GenerativeModel or generate_text. "
-                    "Please upgrade: pip install --upgrade google-generativeai"
+                    "google-genai package doesn't have GenerativeModel or generate_text. "
+                    "Please upgrade: pip install --upgrade google-genai"
                 )
             
             # Content is already extracted above based on API version
