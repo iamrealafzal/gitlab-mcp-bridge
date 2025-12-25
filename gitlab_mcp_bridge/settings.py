@@ -98,11 +98,23 @@ WSGI_APPLICATION = 'gitlab_mcp_bridge.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 # Use DATABASE_URL if provided (Railway provides this), otherwise use SQLite
+# IMPORTANT: On Railway, you MUST add a PostgreSQL database service
+# SQLite will lose data on every redeploy because Railway's filesystem is ephemeral
 if 'DATABASE_URL' in os.environ:
     DATABASES = {
         'default': env.db('DATABASE_URL')
     }
 else:
+    # SQLite for local development only
+    # WARNING: Do not use SQLite in production (Railway, Heroku, etc.)
+    # It will lose data on every deploy!
+    if not DEBUG:
+        import warnings
+        warnings.warn(
+            "DEBUG=False but DATABASE_URL not set. "
+            "Using SQLite which will lose data on redeploy. "
+            "Please add a PostgreSQL database on Railway!"
+        )
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
