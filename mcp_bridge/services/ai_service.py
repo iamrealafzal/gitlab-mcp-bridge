@@ -215,39 +215,81 @@ class AIService:
                 logger.debug(f"Could not list models: {e}")
             
             if not model_id.startswith('models/'):
-                # Try to map common Gemini model names to old API format
-                model_mapping = {
-                    'gemini-pro': 'models/text-bison-001',
-                    'gemini-1.5-pro': 'models/text-bison-001',
-                    'gemini-1.5-flash': 'models/text-bison-001',
-                    'text-bison': 'models/text-bison-001',
-                    'text-bison-001': 'models/text-bison-001',
-                }
-                model_id = model_mapping.get(model_id.lower(), f'models/{model_id}')
+                # Add models/ prefix if not present
+                model_id = f'models/{model_id}'
             
             # Check if the requested model is available
             # If not, and we have available models, try to use a text generation model
             if available_models and model_id not in available_models:
-                # Look for any text generation model (not embedding)
-                text_models = [m for m in available_models if 'text' in m.lower() or 'bison' in m.lower()]
+                # Look for text generation models (exclude embedding, imagen, veo, etc.)
+                exclude_keywords = ['embedding', 'imagen', 'veo', 'audio', 'tts', 'image', 'preview']
+                text_models = [
+                    m for m in available_models 
+                    if not any(keyword in m.lower() for keyword in exclude_keywords)
+                    and ('gemini' in m.lower() or 'flash' in m.lower() or 'pro' in m.lower())
+                ]
                 if text_models:
-                    logger.warning(f"Requested model {model_id} not available. Using {text_models[0]} instead.")
-                    model_id = text_models[0]
+                    # Prefer the requested model name if similar exists
+                    preferred = [m for m in text_models if model_id.split('/')[-1] in m.lower()]
+                    if preferred:
+                        model_id = preferred[0]
+                        logger.info(f"Using available model: {model_id}")
+                    else:
+                        logger.warning(f"Requested model {model_id} not available. Using {text_models[0]} instead.")
+                        model_id = text_models[0]
                 else:
                     # No suitable text model available
                     raise ValueError(
-                        f"Gemini model '{model_id}' not found. Available models: {available_models}. "
+                        f"Gemini model '{model_id}' not found. Available models: {available_models[:5]}... "
                         f"None of them support text generation. Please use Ollama, OpenAI, or Anthropic instead."
                     )
             
             logger.info(f"Attempting to use Gemini model: {model_id}")
             
-            response = genai.generate_text(
-                model=model_id,
-                prompt=prompt,
-                temperature=0.7,
-                max_output_tokens=2000,
-            )
+            # Try new API first (GenerativeModel), fallback to old API (generate_text)
+            if hasattr(genai, 'GenerativeModel'):
+                # New API (google-generativeai >= 0.3.0)
+                model = genai.GenerativeModel(model_id)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={
+                        'temperature': 0.7,
+                        'max_output_tokens': 2000,
+                    }
+                )
+                # Extract text from response
+                if hasattr(response, 'text'):
+                    content = response.text
+                elif hasattr(response, 'candidates') and response.candidates:
+                    content = response.candidates[0].content.parts[0].text
+                else:
+                    content = str(response)
+            elif hasattr(genai, 'generate_text'):
+                # Old API (google-generativeai 0.1.0rc1)
+                response = genai.generate_text(
+                    model=model_id,
+                    prompt=prompt,
+                    temperature=0.7,
+                    max_output_tokens=2000,
+                )
+                # Extract content from old API response
+                if hasattr(response, 'result') and response.result:
+                    content = response.result
+                elif hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if isinstance(candidate, dict) and 'output' in candidate:
+                        content = candidate['output']
+                    elif hasattr(candidate, 'output'):
+                        content = candidate.output
+                    else:
+                        content = str(candidate)
+                else:
+                    content = str(response)
+            else:
+                raise AttributeError(
+                    "google-generativeai package doesn't have GenerativeModel or generate_text. "
+                    "Please upgrade: pip install --upgrade google-generativeai"
+                )
             
             # Extract content from response
             # The old API (0.1.0rc1) returns a Completion object
