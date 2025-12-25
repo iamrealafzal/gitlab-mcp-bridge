@@ -101,7 +101,7 @@ class AIModelAdmin(admin.ModelAdmin):
             'fields': ('is_default', 'is_active')
         }),
     )
-    readonly_fields = ['created_at']
+    readonly_fields = ['created_at']  # Note: AIModel doesn't have updated_at
 
 
 @admin.register(NotificationChannel)
@@ -130,4 +130,4 @@ class NotificationRuleAdmin(admin.ModelAdmin):
             'fields': ('name', 'trigger_type', 'channel', 'is_active')
         }),
     )
-    readonly_fields = ['created_at']
+    readonly_fields = ['created_at']  # Note: NotificationRule doesn't have updated_at
