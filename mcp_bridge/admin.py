@@ -33,7 +33,16 @@ class GitLabConnectionAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     
     def has_token(self, obj):
-        return bool(obj.access_token)
+        """Check if connection has an access token"""
+        if not obj:
+            return False
+        try:
+            # Access the encrypted field - it will decrypt automatically
+            # If decryption fails, it returns empty string, so bool() will be False
+            return bool(obj.access_token)
+        except Exception:
+            # If there's any error accessing the token, return False
+            return False
     has_token.boolean = True
     has_token.short_description = 'Has Token'
     
