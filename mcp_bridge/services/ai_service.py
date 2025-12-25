@@ -291,25 +291,11 @@ class AIService:
                     "Please upgrade: pip install --upgrade google-generativeai"
                 )
             
-            # Extract content from response
-            # The old API (0.1.0rc1) returns a Completion object
-            # Completion has a 'result' attribute that contains the text output
-            # It's set to candidates[0]["output"] if candidates exist
-            if hasattr(response, 'result') and response.result:
-                content = response.result
-            elif hasattr(response, 'candidates') and response.candidates:
-                # Fallback: extract from candidates directly
-                candidate = response.candidates[0]
-                if isinstance(candidate, dict) and 'output' in candidate:
-                    content = candidate['output']
-                elif hasattr(candidate, 'output'):
-                    content = candidate.output
-                else:
-                    content = str(candidate)
-            else:
-                # Last resort: convert to string
-                content = str(response)
-                logger.warning(f"Could not extract text from Gemini response, using string representation")
+            # Content is already extracted above based on API version
+            # Just verify we have content
+            if not content:
+                logger.warning(f"Could not extract text from Gemini response: {response}")
+                raise ValueError("Gemini API returned empty response")
             
             return {
                 'suggestion': content,
