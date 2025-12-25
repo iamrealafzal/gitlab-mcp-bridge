@@ -34,19 +34,41 @@ Get up and running with GitLab MCP Bridge in 5 minutes!
 
 ## Basic Configuration
 
-### Step 1: Add GitLab Connection
+### Step 1: Add GitLab Connection (Create First)
 
 1. Go to **MCP Bridge > GitLab Connections**
 2. Click **Add GitLab Connection**
 3. Fill in:
    - **Name**: My GitLab
    - **Instance URL**: https://gitlab.com
-   - **Client ID**: (from GitLab OAuth app)
-   - **Client Secret**: (from GitLab OAuth app)
+   - **Client ID**: (leave blank for now)
+   - **Client Secret**: (leave blank for now)
 4. Click **Save**
-5. Click **Connect to GitLab** button
-6. Authorize the application
-7. Repositories will sync automatically
+5. **Note the Connection ID** from the URL (e.g., if URL shows `/admin/.../gitlabconnection/1/change/`, the ID is `1`)
+
+### Step 2: Create GitLab OAuth Application
+
+1. Go to https://gitlab.com/-/profile/applications (or your GitLab instance)
+2. Click **Add new application**
+3. Fill in:
+   - **Name**: GitLab MCP Bridge
+   - **Redirect URI**: `http://localhost:8000/mcp/gitlab/oauth/callback/<YOUR_CONNECTION_ID>/`
+     - Replace `<YOUR_CONNECTION_ID>` with the ID from Step 1 (e.g., `1`)
+     - Example: `http://localhost:8000/mcp/gitlab/oauth/callback/1/`
+   - **Scopes**: Check `api` and `read_user`
+4. Click **Save application**
+5. Copy the **Application ID** and **Secret**
+
+### Step 3: Complete GitLab Connection
+
+1. Go back to Django Admin and edit your GitLab Connection
+2. Fill in:
+   - **Client ID**: Paste the Application ID
+   - **Client Secret**: Paste the Secret
+3. Click **Save**
+4. Click **Connect to GitLab** button
+5. Authorize the application
+6. Repositories will sync automatically
 
 ### Step 2: Add AI Model
 

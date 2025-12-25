@@ -94,27 +94,37 @@ graph TD
 
 ## Configuration
 
-### 1. Set Up GitLab OAuth Application
-
-1. Go to your GitLab instance (e.g., `https://gitlab.com/-/profile/applications`)
-2. Create a new OAuth application:
-   - **Name**: GitLab MCP Bridge
-   - **Redirect URI**: `http://localhost:8000/mcp/gitlab/oauth/callback/<connection_id>/`
-   - **Scopes**: `api`, `read_user`
-3. Save the **Application ID** and **Secret**
-
-### 2. Configure GitLab Connection
+### 1. Configure GitLab Connection (First Step)
 
 1. In Django Admin, go to **MCP Bridge > GitLab Connections**
 2. Click **Add GitLab Connection**
 3. Fill in:
    - **Name**: A friendly name (e.g., "My GitLab")
    - **Instance URL**: Your GitLab URL (e.g., `https://gitlab.com`)
-   - **Client ID**: From step 1
-   - **Client Secret**: From step 1
+   - **Client ID**: Leave blank for now
+   - **Client Secret**: Leave blank for now
 4. Click **Save**
-5. Click **Connect to GitLab** button to authorize
-6. Repositories will be automatically synced
+5. **Important**: Note the connection ID from the URL (e.g., if URL is `/admin/mcp_bridge/gitlabconnection/1/change/`, the ID is `1`)
+
+### 2. Set Up GitLab OAuth Application
+
+1. Go to your GitLab instance (e.g., `https://gitlab.com/-/profile/applications`)
+2. Create a new OAuth application:
+   - **Name**: GitLab MCP Bridge
+   - **Redirect URI**: `http://localhost:8000/mcp/gitlab/oauth/callback/<YOUR_CONNECTION_ID>/`
+     - Replace `<YOUR_CONNECTION_ID>` with the actual ID from step 1 (e.g., `http://localhost:8000/mcp/gitlab/oauth/callback/1/`)
+   - **Scopes**: `api`, `read_user`
+3. Click **Save** and copy the **Application ID** and **Secret**
+
+### 3. Complete GitLab Connection Setup
+
+1. Go back to Django Admin and edit the GitLab Connection you created
+2. Fill in:
+   - **Client ID**: Paste the Application ID from step 2
+   - **Client Secret**: Paste the Secret from step 2
+3. Click **Save**
+4. Click **Connect to GitLab** button to authorize
+5. Repositories will be automatically synced
 
 ### 3. Configure AI Models
 
