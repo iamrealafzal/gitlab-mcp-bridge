@@ -247,6 +247,7 @@ class AIService:
             logger.info(f"Attempting to use Gemini model: {model_id}")
             
             # Try new API first (GenerativeModel), fallback to old API (generate_text)
+            content = None
             if hasattr(genai, 'GenerativeModel'):
                 # New API (google-generativeai >= 0.3.0)
                 model = genai.GenerativeModel(model_id)
