@@ -270,7 +270,7 @@ class LLMProvider(models.Model):
     name = models.CharField(max_length=100, unique=True, help_text="Provider name")
     provider_type = models.CharField(max_length=20, choices=PROVIDER_TYPES)
     base_url = models.URLField(
-        help_text="API Base URL (e.g., https://api.openai.com/v1, https://generativelanguage.googleapis.com for Gemini, or http://localhost:11434 for Ollama). Can be left default for Gemini."
+        help_text="API Base URL (e.g., https://api.openai.com/v1, https://api.cursor.com/v1 for Cursor, https://generativelanguage.googleapis.com for Gemini, or http://localhost:11434 for Ollama). Defaults will be set automatically if left blank."
     )
     api_key = EncryptedTextField(
         null=True,
