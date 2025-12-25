@@ -402,20 +402,47 @@ class MCPServer:
                 try:
                     file_path = first_error['file_path']
                     line_num = first_error['line_number']
-                    # Fetch surrounding lines
-                    code_context = gitlab_service.get_file_lines(
-                        repository, file_path, max(1, line_num - 10), line_num + 10
-                    )
-                    code_context = f"File: {file_path}\nLines {code_context['lines'][0]}-{code_context['lines'][-1]}:\n{code_context['content']}"
+                    
+                    # Validate file path - skip if it looks invalid (e.g., just a number)
+                    if not file_path or file_path.isdigit() or len(file_path) < 3:
+                        logger.warning(f"Skipping invalid file path: {file_path}")
+                    else:
+                        # Fetch surrounding lines
+                        code_context = gitlab_service.get_file_lines(
+                            repository, file_path, max(1, line_num - 10), line_num + 10
+                        )
+                        code_context = f"File: {file_path}\nLines {code_context['lines'][0]}-{code_context['lines'][-1]}:\n{code_context['content']}"
                 except Exception as e:
                     logger.warning(f"Could not fetch code context: {e}")
             
             # Generate fix
-            fix_result = ai_service.generate_fix_suggestion(
-                error_context=error_context,
-                code_context=code_context,
-                log_content=analyzer.content[:2000] if analyzer.content else None
-            )
+            try:
+                fix_result = ai_service.generate_fix_suggestion(
+                    error_context=error_context,
+                    code_context=code_context,
+                    log_content=analyzer.content[:2000] if analyzer.content else None
+                )
+            except ValueError as e:
+                # Handle provider-specific errors (like Gemini model not found)
+                error_msg = str(e)
+                if "Gemini model" in error_msg or "not found" in error_msg:
+                    # Try to fallback to Ollama if available
+                    ollama_model = AIModel.objects.filter(
+                        provider__provider_type='ollama',
+                        is_active=True
+                    ).first()
+                    if ollama_model:
+                        logger.info(f"Falling back to Ollama model: {ollama_model.display_name}")
+                        ai_service = AIService(ollama_model)
+                        fix_result = ai_service.generate_fix_suggestion(
+                            error_context=error_context,
+                            code_context=code_context,
+                            log_content=analyzer.content[:2000] if analyzer.content else None
+                        )
+                    else:
+                        return {'error': error_msg}
+                else:
+                    raise
             
             # Trigger notifications if configured
             NotificationService.trigger_notifications(

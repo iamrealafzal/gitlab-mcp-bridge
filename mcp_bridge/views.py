@@ -22,7 +22,7 @@ def gitlab_oauth_start(request, connection_id):
         connection = GitLabConnection.objects.get(id=connection_id, is_active=True)
         
         # Build OAuth authorization URL
-        redirect_uri = request.build_absolute_uri(f'/mcp/gitlab/callback/{connection_id}/')
+        redirect_uri = request.build_absolute_uri(f'/mcp/gitlab/oauth/callback/{connection_id}/')
         scope = 'api read_user'
         
         auth_url = (
@@ -60,20 +60,67 @@ def gitlab_oauth_callback(request, connection_id):
             return redirect('admin:mcp_bridge_gitlabconnection_change', connection_id)
         
         # Exchange code for token
-        redirect_uri = request.session.get('gitlab_redirect_uri')
+        # Use the actual callback URL from the request (what GitLab redirected to)
+        # This ensures it matches what's registered in GitLab OAuth app
+        redirect_uri = request.build_absolute_uri(request.get_full_path().split('?')[0])
+        
+        # Fallback to session if needed (for backwards compatibility)
         if not redirect_uri:
-            redirect_uri = request.build_absolute_uri(f'/mcp/gitlab/callback/{connection_id}/')
+            redirect_uri = request.session.get('gitlab_redirect_uri')
+        if not redirect_uri:
+            redirect_uri = request.build_absolute_uri(f'/mcp/gitlab/oauth/callback/{connection_id}/')
         
         token_url = f"{connection.instance_url}/oauth/token"
+        
+        # Get client_secret - ensure it's decrypted properly
+        client_secret = connection.client_secret
+        if not client_secret:
+            messages.error(
+                request,
+                "Client Secret is empty. Please re-enter it in Django Admin."
+            )
+            return redirect('admin:mcp_bridge_gitlabconnection_change', connection_id)
+        
         token_data = {
             'client_id': connection.client_id,
-            'client_secret': connection.client_secret,
+            'client_secret': client_secret,
             'code': code,
             'grant_type': 'authorization_code',
             'redirect_uri': redirect_uri,
         }
         
+        logger.info(f"Exchanging token for connection {connection_id}")
+        logger.debug(f"Token URL: {token_url}")
+        logger.debug(f"Redirect URI: {redirect_uri}")
+        logger.debug(f"Client ID: {connection.client_id}")
+        logger.debug(f"Client Secret present: {bool(client_secret)}")
+        logger.debug(f"Client Secret length: {len(client_secret) if client_secret else 0}")
+        
         response = requests.post(token_url, data=token_data, timeout=10)
+        
+        if response.status_code != 200:
+            try:
+                error_detail = response.json()
+                error_message = error_detail.get('error_description', error_detail.get('error', response.text))
+            except:
+                error_message = response.text
+            
+            logger.error(f"Token exchange failed: {response.status_code}")
+            logger.error(f"Error details: {error_message}")
+            logger.error(f"Request details - Redirect URI: {redirect_uri}")
+            logger.error(f"Request details - Client ID: {connection.client_id}")
+            logger.error(f"Request details - Code: {code[:20]}...")
+            
+            messages.error(
+                request,
+                f"OAuth token exchange failed: {response.status_code}. "
+                f"Error: {error_message}. "
+                f"Please verify: 1) Client ID and Secret are correct in Django Admin, "
+                f"2) Redirect URI in GitLab app matches exactly: {redirect_uri}, "
+                f"3) Authorization code hasn't expired (try clicking 'Connect to GitLab' again)."
+            )
+            return redirect('admin:mcp_bridge_gitlabconnection_change', connection_id)
+        
         response.raise_for_status()
         
         token_response = response.json()

@@ -152,6 +152,17 @@ graph TD
    - **Model ID**: `claude-3-5-sonnet-20241022`
    - **Display Name**: Claude 3.5 Sonnet
 
+#### For Google Gemini:
+1. Get your API key from: https://makersuite.google.com/app/apikey
+2. Add provider:
+   - **Name**: Google Gemini
+   - **Provider Type**: Google Gemini
+   - **Base URL**: `https://generativelanguage.googleapis.com` (or leave default)
+   - **API Key**: Your Gemini API key
+3. Add model:
+   - **Model ID**: `gemini-pro` or `gemini-1.5-pro` or `gemini-1.5-flash`
+   - **Display Name**: Gemini Pro
+
 #### For Ollama (Local):
 1. Install Ollama: https://ollama.ai
 2. Pull a model: `ollama pull qwen2.5-coder:7b`

@@ -22,9 +22,12 @@ class LogAnalyzer:
         (r'Error: (.+)', 'javascript'),
         # Java stack traces
         (r'at (.+?)\((.+?):(\d+)\)', 'java'),
-        # Generic file:line patterns
-        (r'([^\s:]+):(\d+):', 'generic'),
-        (r'([^\s:]+)\((\d+)\)', 'generic'),
+        # Generic file:line patterns (but exclude pure numbers)
+        (r'([^\s:]+\.(py|js|java|ts|tsx|go|rs|rb|php)):(\d+):', 'generic'),
+        (r'([^\s:]+\.(py|js|java|ts|tsx|go|rs|rb|php))\((\d+)\)', 'generic'),
+        # File path patterns with slashes (more reliable)
+        (r'([^\s:]+/[^\s:]+):(\d+)', 'generic'),
+        (r'([^\s:]+\\[^\s:]+):(\d+)', 'generic'),
     ]
     
     def __init__(self, file_path: str):
@@ -75,9 +78,21 @@ class LogAnalyzer:
                     elif error_type == 'java' and len(match.groups()) >= 3:
                         error_info['file_path'] = match.group(2)
                         error_info['line_number'] = int(match.group(3))
-                    elif error_type == 'generic' and len(match.groups()) >= 2:
-                        error_info['file_path'] = match.group(1)
-                        error_info['line_number'] = int(match.group(2))
+                    elif error_type == 'generic':
+                        # Generic patterns have different group structures
+                        # Pattern 1: ([^\s:]+\.(py|js|...)):(\d+): - groups: 1=file, 2=ext, 3=line
+                        # Pattern 2: ([^\s:]+\.(py|js|...))\((\d+)\) - groups: 1=file, 2=ext, 3=line
+                        # Pattern 3: ([^\s:]+/[^\s:]+):(\d+) - groups: 1=file, 2=line
+                        # Pattern 4: ([^\s:]+\\[^\s:]+):(\d+) - groups: 1=file, 2=line
+                        groups = match.groups()
+                        if len(groups) >= 3:
+                            # Pattern with file extension: group 1 is file, group 3 is line
+                            error_info['file_path'] = match.group(1)
+                            error_info['line_number'] = int(match.group(3))
+                        elif len(groups) >= 2:
+                            # Pattern without extension: group 1 is file, group 2 is line
+                            error_info['file_path'] = match.group(1)
+                            error_info['line_number'] = int(match.group(2))
                     
                     # Extract context (surrounding lines)
                     context_start = max(0, i - 5)

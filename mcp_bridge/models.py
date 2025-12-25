@@ -34,29 +34,68 @@ def decrypt_value(encrypted: bytes) -> str:
     """Decrypt an encrypted value"""
     if not encrypted:
         return ''
-    f = Fernet(get_encryption_key())
-    return f.decrypt(encrypted).decode()
+    try:
+        f = Fernet(get_encryption_key())
+        return f.decrypt(encrypted).decode()
+    except Exception as e:
+        # If decryption fails (wrong key, corrupted data, etc.), return empty string
+        # This prevents crashes when viewing admin pages
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to decrypt value: {e}. Returning empty string.")
+        return ''
 
 
 class EncryptedTextField(models.BinaryField):
     """Custom field that encrypts/decrypts text automatically"""
     
+    def __init__(self, *args, **kwargs):
+        # Ensure the field is editable in admin
+        kwargs.setdefault('editable', True)
+        super().__init__(*args, **kwargs)
+    
     def from_db_value(self, value, expression, connection):
         if value is None:
             return value
-        return decrypt_value(value)
+        try:
+            return decrypt_value(value)
+        except Exception:
+            # If decryption fails, return empty string to prevent crashes
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to decrypt field value. Returning empty string.")
+            return ''
     
     def to_python(self, value):
         if isinstance(value, str):
             return value
         if value is None:
             return value
-        return decrypt_value(value)
+        try:
+            return decrypt_value(value)
+        except Exception:
+            # If decryption fails, return empty string to prevent crashes
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to decrypt field value in to_python. Returning empty string.")
+            return ''
     
     def get_prep_value(self, value):
         if value is None:
             return value
         return encrypt_value(value)
+    
+    def formfield(self, **kwargs):
+        # Use CharField for the form instead of BinaryField
+        # This allows the field to be editable in Django admin
+        from django import forms
+        field_name = getattr(self, 'name', '')
+        defaults = {
+            'widget': forms.PasswordInput(render_value=True) if 'secret' in field_name.lower() or 'token' in field_name.lower() else forms.TextInput,
+            'required': not self.null and not self.blank,
+        }
+        defaults.update(kwargs)
+        return forms.CharField(**defaults)
 
 
 class GitLabConnection(models.Model):
@@ -122,12 +161,13 @@ class LLMProvider(models.Model):
         ('openai', 'OpenAI'),
         ('anthropic', 'Anthropic'),
         ('ollama', 'Ollama (Local)'),
+        ('gemini', 'Google Gemini'),
     ]
     
     name = models.CharField(max_length=100, unique=True, help_text="Provider name")
     provider_type = models.CharField(max_length=20, choices=PROVIDER_TYPES)
     base_url = models.URLField(
-        help_text="API Base URL (e.g., https://api.openai.com/v1 or http://localhost:11434 for Ollama)"
+        help_text="API Base URL (e.g., https://api.openai.com/v1, https://generativelanguage.googleapis.com for Gemini, or http://localhost:11434 for Ollama). Can be left default for Gemini."
     )
     api_key = EncryptedTextField(
         null=True,
@@ -147,7 +187,7 @@ class LLMProvider(models.Model):
         return f"{self.name} ({self.get_provider_type_display()})"
     
     def clean(self):
-        if self.provider_type != 'ollama' and not self.api_key:
+        if self.provider_type not in ['ollama'] and not self.api_key:
             raise ValidationError("API key is required for cloud providers")
 
 
