@@ -39,6 +39,16 @@ DEBUG = env('DEBUG', default=True)
 # Allow all hosts in production (Railway will provide the domain)
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', '*'])
 
+# CSRF trusted origins for Railway and other production domains
+CSRF_TRUSTED_ORIGINS = env.list(
+    'CSRF_TRUSTED_ORIGINS',
+    default=[
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'https://gitlab-mcp-bridge-production.up.railway.app',
+    ]
+)
+
 
 # Application definition
 
