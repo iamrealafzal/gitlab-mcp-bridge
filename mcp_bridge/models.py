@@ -58,10 +58,42 @@ def encrypt_value(value: str) -> bytes:
     return f.encrypt(value.encode())
 
 
-def decrypt_value(encrypted: bytes) -> str:
-    """Decrypt an encrypted value"""
+def decrypt_value(encrypted) -> str:
+    """Decrypt an encrypted value
+    
+    Handles different input types:
+    - bytes: Direct encrypted data
+    - str: Base64-encoded string or memoryview string representation
+    - memoryview: PostgreSQL bytea field representation
+    """
     if not encrypted:
         return ''
+    
+    # Handle memoryview (PostgreSQL bytea fields return this)
+    if isinstance(encrypted, memoryview):
+        encrypted = bytes(encrypted)
+    
+    # Handle string inputs (might be base64 encoded or string representation)
+    if isinstance(encrypted, str):
+        try:
+            # Try to decode as base64 first
+            import base64
+            encrypted = base64.b64decode(encrypted)
+        except Exception:
+            # If it's not base64, it might be plain text (unencrypted data)
+            # Return as-is to avoid breaking existing data
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Value appears to be plain text, not encrypted: {type(encrypted)}")
+            return encrypted
+    
+    # Ensure we have bytes
+    if not isinstance(encrypted, bytes):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to decrypt value: expected bytes, got {type(encrypted)}. Returning empty string.")
+        return ''
+    
     try:
         f = Fernet(get_encryption_key())
         return f.decrypt(encrypted).decode()
