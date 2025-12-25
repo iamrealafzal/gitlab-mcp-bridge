@@ -199,19 +199,29 @@ class AIService:
             )
         
         try:
-            # Configure Gemini API
-            genai.configure(api_key=self.provider.api_key)
+            # Initialize Gemini client
+            # New API (google-genai) uses Client, old API (google-generativeai) uses configure
+            if hasattr(genai, 'Client'):
+                # New API: google-genai
+                client = genai.Client(api_key=self.provider.api_key)
+                use_new_api = True
+            else:
+                # Old API: google-generativeai
+                genai.configure(api_key=self.provider.api_key)
+                client = None
+                use_new_api = False
             
-            # Use generate_text for older API versions (0.1.0rc1)
-            # This version doesn't have GenerativeModel, so we use generate_text directly
-            # The old API uses model names like "models/text-bison-001"
-            # If user provided a simple name like "gemini-pro", try to map it
             model_id = self.model.model_id
             
             # Try to list available models first (if API supports it)
             available_models = []
             try:
-                if hasattr(genai, 'list_models'):
+                if use_new_api and hasattr(client, 'list_models'):
+                    models = client.list_models()
+                    if models:
+                        available_models = [m.name if hasattr(m, 'name') else str(m) for m in models]
+                        logger.info(f"Available Gemini models: {available_models}")
+                elif hasattr(genai, 'list_models'):
                     models = genai.list_models()
                     if models:
                         available_models = [m.name if hasattr(m, 'name') else str(m) for m in models]
@@ -251,10 +261,61 @@ class AIService:
             
             logger.info(f"Attempting to use Gemini model: {model_id}")
             
-            # Try new API first (GenerativeModel), fallback to old API (generate_text)
+            # Try new API first (google-genai Client), then old API (GenerativeModel/generate_text)
             content = None
-            if hasattr(genai, 'GenerativeModel'):
-                # New API (google-generativeai >= 0.3.0)
+            if use_new_api:
+                # New API: google-genai uses Client
+                # Try different methods based on what's available
+                try:
+                    # Method 1: client.models.generate_content
+                    if hasattr(client, 'models') and hasattr(client.models, 'generate_content'):
+                        response = client.models.generate_content(
+                            model=model_id,
+                            contents=prompt,
+                            config={
+                                'temperature': 0.7,
+                                'max_output_tokens': 2000,
+                            }
+                        )
+                    # Method 2: client.generate_content directly
+                    elif hasattr(client, 'generate_content'):
+                        response = client.generate_content(
+                            model=model_id,
+                            contents=prompt,
+                            config={
+                                'temperature': 0.7,
+                                'max_output_tokens': 2000,
+                            }
+                        )
+                    else:
+                        # Fallback: try to get model and generate
+                        model = client.get_model(model_id)
+                        response = model.generate_content(
+                            prompt,
+                            generation_config={
+                                'temperature': 0.7,
+                                'max_output_tokens': 2000,
+                            }
+                        )
+                    
+                    # Extract text from response
+                    if hasattr(response, 'text'):
+                        content = response.text
+                    elif hasattr(response, 'candidates') and response.candidates:
+                        if hasattr(response.candidates[0], 'content'):
+                            if hasattr(response.candidates[0].content, 'parts'):
+                                content = response.candidates[0].content.parts[0].text
+                            elif hasattr(response.candidates[0].content, 'text'):
+                                content = response.candidates[0].content.text
+                        else:
+                            content = str(response.candidates[0])
+                    else:
+                        content = str(response)
+                except Exception as e:
+                    logger.error(f"Error with new API method: {e}")
+                    raise
+            elif hasattr(genai, 'GenerativeModel'):
+                # Old API (google-generativeai >= 0.3.0)
                 model = genai.GenerativeModel(model_id)
                 response = model.generate_content(
                     prompt,
