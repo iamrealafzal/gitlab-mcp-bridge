@@ -294,8 +294,9 @@ class LLMProvider(models.Model):
             raise ValidationError("API key is required for cloud providers")
         
         # Set default base URL for Cursor if not provided
+        # Cursor API keys typically work with OpenAI API directly
         if self.provider_type == 'cursor' and not self.base_url:
-            self.base_url = 'https://api.cursor.com/v1'
+            self.base_url = 'https://api.openai.com/v1'
 
 
 class AIModel(models.Model):
