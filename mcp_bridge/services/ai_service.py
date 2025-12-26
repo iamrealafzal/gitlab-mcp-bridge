@@ -67,27 +67,27 @@ class AIService:
         code_context: Optional[str],
         log_content: Optional[str]
     ) -> str:
-        """Build the prompt for the LLM"""
+        """Build the prompt for the LLM (optimized for speed)"""
+        # More concise prompt for faster processing
         prompt_parts = [
-            "You are an expert software engineer analyzing an error in a codebase.",
-            "Your task is to identify the root cause and suggest a fix.",
+            "Analyze this error and suggest a fix:",
             "",
-            "=== ERROR CONTEXT ===",
+            "ERROR:",
             error_context,
         ]
         
         if code_context:
             prompt_parts.extend([
                 "",
-                "=== RELEVANT CODE ===",
+                "CODE:",
                 code_context,
             ])
         
         if log_content:
             prompt_parts.extend([
                 "",
-                "=== FULL LOG (for additional context) ===",
-                log_content[:2000],  # Limit log content to avoid token limits
+                "LOG:",
+                log_content[:500],  # Reduced from 2000 to 500 for faster processing
             ])
         
         prompt_parts.extend([
@@ -242,17 +242,40 @@ class AIService:
             base_url = self.provider.base_url.rstrip('/')
             url = f"{base_url}/api/generate"
             
+            # Check if model is available first
+            try:
+                check_url = f"{base_url}/api/tags"
+                check_response = requests.get(check_url, timeout=10)
+                if check_response.status_code == 200:
+                    models = check_response.json().get('models', [])
+                    model_names = [m.get('name', '') for m in models]
+                    if self.model.model_id not in model_names:
+                        logger.warning(f"Model {self.model.model_id} not found. Available models: {model_names}")
+            except Exception as e:
+                logger.warning(f"Could not check available Ollama models: {e}")
+            
             payload = {
                 "model": self.model.model_id,
                 "prompt": prompt,
                 "stream": False,
+                "options": {
+                    "temperature": 0.3,  # Lower temperature for faster, more focused responses
+                    "num_predict": 500,  # Limit response length to 500 tokens for faster generation
+                }
             }
             
-            response = requests.post(url, json=payload, timeout=120)
+            logger.info(f"Calling Ollama model {self.model.model_id} at {url} (this may take a while for large models)...")
+            
+            # Ollama can be slow, especially on first generation or with large prompts
+            # Increase timeout to 300 seconds (5 minutes) for large models
+            response = requests.post(url, json=payload, timeout=300)
             response.raise_for_status()
             
             result = response.json()
             content = result.get('response', '')
+            
+            if not content:
+                logger.warning(f"Ollama returned empty response: {result}")
             
             return {
                 'suggestion': content,
@@ -261,6 +284,9 @@ class AIService:
                 'model': self.model.model_id,
                 'provider': 'ollama',
             }
+        except requests.exceptions.Timeout:
+            logger.error(f"Ollama request timed out after 300 seconds. Model {self.model.model_id} may be too slow or the prompt too large.")
+            raise Exception(f"Ollama request timed out. The model {self.model.model_id} is taking too long to respond. Try a smaller model or reduce the prompt size.")
         except Exception as e:
             logger.error(f"Error calling Ollama: {e}")
             raise

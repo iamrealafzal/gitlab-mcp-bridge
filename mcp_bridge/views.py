@@ -11,6 +11,7 @@ from .services.gitlab_service import GitLabService
 from django.utils import timezone
 from datetime import timedelta
 import logging
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,15 @@ def gitlab_oauth_start(request, connection_id):
         
         # Build OAuth authorization URL
         redirect_uri = request.build_absolute_uri(f'/mcp/gitlab/oauth/callback/{connection_id}/')
-        scope = 'api read_user'
         
-        auth_url = (
-            f"{connection.instance_url}/oauth/authorize"
-            f"?client_id={connection.client_id}"
-            f"&redirect_uri={redirect_uri}"
-            f"&response_type=code"
-            f"&scope={scope}"
-        )
+        # Properly encode query parameters
+        params = {
+            'client_id': connection.client_id,
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'api read_user'  # GitLab expects space-separated scopes
+        }
+        auth_url = f"{connection.instance_url}/oauth/authorize?{urlencode(params)}"
         
         # Store redirect URI in session for callback
         request.session['gitlab_redirect_uri'] = redirect_uri

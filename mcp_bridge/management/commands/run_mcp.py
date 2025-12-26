@@ -4,6 +4,7 @@ Django management command to run the MCP server
 import json
 import sys
 import logging
+from typing import Dict, Any
 from django.core.management.base import BaseCommand
 from django.core.exceptions import ObjectDoesNotExist
 from mcp_bridge.models import (
@@ -393,9 +394,10 @@ class MCPServer:
             gitlab_service = GitLabService(connection)
             ai_service = AIService(model)
             
-            # Process first error with file reference
+            # Process first error with file reference (optimized for speed)
             first_error = errors[0]
-            error_context = first_error.get('context', first_error.get('raw_line', ''))
+            # Use only the error line, not full context (faster)
+            error_context = first_error.get('raw_line', '')[:500]  # Limit to 500 chars
             
             code_context = None
             if 'file_path' in first_error and first_error.get('line_number'):
@@ -407,20 +409,22 @@ class MCPServer:
                     if not file_path or file_path.isdigit() or len(file_path) < 3:
                         logger.warning(f"Skipping invalid file path: {file_path}")
                     else:
-                        # Fetch surrounding lines
+                        # Fetch fewer surrounding lines for faster processing (5 before, 5 after)
                         code_context = gitlab_service.get_file_lines(
-                            repository, file_path, max(1, line_num - 10), line_num + 10
+                            repository, file_path, max(1, line_num - 5), line_num + 5
                         )
                         code_context = f"File: {file_path}\nLines {code_context['lines'][0]}-{code_context['lines'][-1]}:\n{code_context['content']}"
                 except Exception as e:
                     logger.warning(f"Could not fetch code context: {e}")
             
-            # Generate fix
+            # Generate fix with reduced context for faster response
             try:
+                # Limit log content to 500 chars for faster processing
+                log_snippet = analyzer.content[:500] if analyzer.content else None
                 fix_result = ai_service.generate_fix_suggestion(
                     error_context=error_context,
                     code_context=code_context,
-                    log_content=analyzer.content[:2000] if analyzer.content else None
+                    log_content=log_snippet
                 )
             except (ValueError, Exception) as e:
                 # Handle provider-specific errors (like Gemini model not found)
@@ -498,5 +502,31 @@ class MCPServer:
                 'channel': channel_name,
             }
         except Exception as e:
+            return {'error': str(e)}
+    
+    def send_fix_to_teams(
+        self,
+        webhook_url: str,
+        error_analyzed: Dict[str, Any],
+        fix_suggestion: Dict[str, Any],
+        repository_name: str = None,
+        log_file_path: str = None
+    ):
+        """Send fix suggestion to Teams via Power Automate webhook"""
+        try:
+            success = NotificationService.send_to_power_automate(
+                webhook_url=webhook_url,
+                error_analyzed=error_analyzed,
+                fix_suggestion=fix_suggestion,
+                repository_name=repository_name,
+                log_file_path=log_file_path
+            )
+            
+            return {
+                'success': success,
+                'message': 'Notification sent to Teams' if success else 'Failed to send notification'
+            }
+        except Exception as e:
+            logger.error(f"Error sending to Teams: {e}")
             return {'error': str(e)}
 
